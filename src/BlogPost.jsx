@@ -113,17 +113,126 @@ const styles = {
 function renderMarkdown(content) {
   if (!content) return null;
 
-  const lines = content.split('\n');
   const elements = [];
-  let listItems = [];
-  let listType = null;
   let keyIndex = 0;
 
-  const flushList = () => {
-    if (listItems.length > 0) {
-      const Tag = listType === 'ol' ? 'ol' : 'ul';
+  // Split by double newlines to get paragraphs/blocks
+  const blocks = content.split(/\n\n+/);
+
+  const renderInline = (text) => {
+    if (!text) return null;
+
+    let result = text;
+    // Convert single newlines to <br> tags
+    result = result.replace(/\n/g, '<br/>');
+    result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;border-radius:8px;margin:16px 0;display:block;" />');
+    result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#C4785A;text-decoration:underline;">$1</a>');
+    result = result.replace(/\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>');
+    result = result.replace(/\*\*(.*?)\*\*/g, '<b style="color:#F5F2EB">$1</b>');
+    result = result.replace(/\*(.*?)\*/g, '<i>$1</i>');
+    result = result.replace(/`(.*?)`/g, '<code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px;font-family:monospace;font-size:14px;color:#C4785A">$1</code>');
+
+    return <span dangerouslySetInnerHTML={{ __html: result }} />;
+  };
+
+  for (const block of blocks) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+
+    // Horizontal rule
+    if (trimmed === '---' || trimmed === '***') {
       elements.push(
-        <Tag key={`list-${keyIndex++}`} style={{
+        <hr key={`hr-${keyIndex++}`} style={{
+          border: 'none',
+          borderTop: '1px solid rgba(255,255,255,0.15)',
+          margin: '40px 0',
+        }} />
+      );
+      continue;
+    }
+
+    // Blockquote (can be multi-line)
+    if (trimmed.startsWith('> ')) {
+      const quoteContent = trimmed.split('\n').map(line =>
+        line.startsWith('> ') ? line.slice(2) : line
+      ).join('\n');
+      elements.push(
+        <blockquote key={`bq-${keyIndex++}`} style={{
+          borderLeft: '3px solid #C4785A',
+          paddingLeft: '20px',
+          margin: '28px 0',
+          fontStyle: 'italic',
+          color: '#A0A0A0',
+          lineHeight: '1.7',
+        }}>
+          {renderInline(quoteContent)}
+        </blockquote>
+      );
+      continue;
+    }
+
+    // H3 Header
+    if (trimmed.startsWith('### ')) {
+      elements.push(
+        <h3 key={`h3-${keyIndex++}`} style={{
+          fontFamily: "'Source Serif 4', serif",
+          fontSize: '20px',
+          fontWeight: '600',
+          color: '#F5F2EB',
+          marginTop: '36px',
+          marginBottom: '16px',
+          lineHeight: '1.4',
+        }}>
+          {trimmed.slice(4)}
+        </h3>
+      );
+      continue;
+    }
+
+    // H2 Header
+    if (trimmed.startsWith('## ')) {
+      elements.push(
+        <h2 key={`h2-${keyIndex++}`} style={{
+          fontFamily: "'Instrument Serif', serif",
+          fontSize: '26px',
+          fontStyle: 'italic',
+          color: '#F5F2EB',
+          marginTop: '44px',
+          marginBottom: '20px',
+          lineHeight: '1.3',
+        }}>
+          {trimmed.slice(3)}
+        </h2>
+      );
+      continue;
+    }
+
+    // H1 Header
+    if (trimmed.startsWith('# ')) {
+      elements.push(
+        <h1 key={`h1-${keyIndex++}`} style={{
+          fontFamily: "'Instrument Serif', serif",
+          fontSize: '32px',
+          fontStyle: 'italic',
+          color: '#F5F2EB',
+          marginTop: '48px',
+          marginBottom: '24px',
+          lineHeight: '1.2',
+        }}>
+          {trimmed.slice(2)}
+        </h1>
+      );
+      continue;
+    }
+
+    // Unordered list
+    const lines = trimmed.split('\n');
+    if (lines[0].startsWith('- ') || lines[0].startsWith('* ')) {
+      const listItems = lines
+        .filter(line => line.startsWith('- ') || line.startsWith('* '))
+        .map(line => line.slice(2));
+      elements.push(
+        <ul key={`ul-${keyIndex++}`} style={{
           marginBottom: '24px',
           paddingLeft: '28px',
           color: '#D0D0D0',
@@ -138,189 +247,48 @@ function renderMarkdown(content) {
               {renderInline(item)}
             </li>
           ))}
-        </Tag>
-      );
-      listItems = [];
-      listType = null;
-    }
-  };
-
-  // Process inline formatting (bold, italic, code)
-  const renderInline = (text) => {
-    if (!text) return null;
-
-    const parts = [];
-    let remaining = text;
-    let partKey = 0;
-
-    // Process patterns
-    const patterns = [
-      { regex: /\*\*\*(.*?)\*\*\*/g, render: (m) => <strong key={partKey++}><em>{m}</em></strong> },
-      { regex: /\*\*(.*?)\*\*/g, render: (m) => <strong key={partKey++} style={{ color: '#F5F2EB' }}>{m}</strong> },
-      { regex: /\*(.*?)\*/g, render: (m) => <em key={partKey++}>{m}</em> },
-      { regex: /`(.*?)`/g, render: (m) => <code key={partKey++} style={{
-        background: 'rgba(255,255,255,0.08)',
-        padding: '2px 6px',
-        borderRadius: '3px',
-        fontFamily: "'Space Mono', monospace",
-        fontSize: '14px',
-        color: '#C4785A',
-      }}>{m}</code> },
-    ];
-
-    // Simple inline rendering - just return the text with basic formatting
-    let result = text;
-
-    // Replace images: ![alt](url)
-    result = result.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;border-radius:8px;margin:16px 0;display:block;" />');
-    // Replace links: [text](url)
-    result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#C4785A;text-decoration:underline;">$1</a>');
-    // Replace ***text*** with bold+italic
-    result = result.replace(/\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>');
-    // Replace **text** with bold
-    result = result.replace(/\*\*(.*?)\*\*/g, '<b style="color:#F5F2EB">$1</b>');
-    // Replace *text* with italic
-    result = result.replace(/\*(.*?)\*/g, '<i>$1</i>');
-    // Replace `code` with code styling
-    result = result.replace(/`(.*?)`/g, '<code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:3px;font-family:monospace;font-size:14px;color:#C4785A">$1</code>');
-
-    return <span dangerouslySetInnerHTML={{ __html: result }} />;
-  };
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    // Horizontal rule
-    if (trimmed === '---' || trimmed === '***') {
-      flushList();
-      elements.push(
-        <hr key={`hr-${keyIndex++}`} style={{
-          border: 'none',
-          borderTop: '1px solid rgba(255,255,255,0.15)',
-          margin: '40px 0',
-        }} />
+        </ul>
       );
       continue;
     }
 
-    // Blockquote
-    if (line.startsWith('> ')) {
-      flushList();
+    // Ordered list
+    if (/^\d+\.\s/.test(lines[0])) {
+      const listItems = lines
+        .filter(line => /^\d+\.\s/.test(line))
+        .map(line => line.replace(/^\d+\.\s/, ''));
       elements.push(
-        <blockquote key={`bq-${keyIndex++}`} style={{
-          borderLeft: '3px solid #C4785A',
-          paddingLeft: '20px',
-          margin: '28px 0',
-          fontStyle: 'italic',
-          color: '#A0A0A0',
-          lineHeight: '1.7',
-        }}>
-          {renderInline(line.slice(2))}
-        </blockquote>
-      );
-      continue;
-    }
-
-    // H3 Header
-    if (line.startsWith('### ')) {
-      flushList();
-      elements.push(
-        <h3 key={`h3-${keyIndex++}`} style={{
-          fontFamily: "'Source Serif 4', serif",
-          fontSize: '20px',
-          fontWeight: '600',
-          color: '#F5F2EB',
-          marginTop: '36px',
-          marginBottom: '16px',
-          lineHeight: '1.4',
-        }}>
-          {line.slice(4)}
-        </h3>
-      );
-      continue;
-    }
-
-    // H2 Header
-    if (line.startsWith('## ')) {
-      flushList();
-      elements.push(
-        <h2 key={`h2-${keyIndex++}`} style={{
-          fontFamily: "'Instrument Serif', serif",
-          fontSize: '26px',
-          fontStyle: 'italic',
-          color: '#F5F2EB',
-          marginTop: '44px',
-          marginBottom: '20px',
-          lineHeight: '1.3',
-        }}>
-          {line.slice(3)}
-        </h2>
-      );
-      continue;
-    }
-
-    // H1 Header
-    if (line.startsWith('# ')) {
-      flushList();
-      elements.push(
-        <h1 key={`h1-${keyIndex++}`} style={{
-          fontFamily: "'Instrument Serif', serif",
-          fontSize: '32px',
-          fontStyle: 'italic',
-          color: '#F5F2EB',
-          marginTop: '48px',
+        <ol key={`ol-${keyIndex++}`} style={{
           marginBottom: '24px',
-          lineHeight: '1.2',
+          paddingLeft: '28px',
+          color: '#D0D0D0',
         }}>
-          {line.slice(2)}
-        </h1>
+          {listItems.map((item, i) => (
+            <li key={i} style={{
+              marginBottom: '12px',
+              paddingLeft: '8px',
+              color: '#D0D0D0',
+              lineHeight: '1.7',
+            }}>
+              {renderInline(item)}
+            </li>
+          ))}
+        </ol>
       );
       continue;
     }
 
-    // Unordered list item
-    if (line.startsWith('- ') || line.startsWith('* ')) {
-      if (listType !== 'ul') {
-        flushList();
-        listType = 'ul';
-      }
-      listItems.push(line.slice(2));
-      continue;
-    }
-
-    // Ordered list item
-    const orderedMatch = line.match(/^(\d+)\.\s(.+)/);
-    if (orderedMatch) {
-      if (listType !== 'ol') {
-        flushList();
-        listType = 'ol';
-      }
-      listItems.push(orderedMatch[2]);
-      continue;
-    }
-
-    // Empty line
-    if (trimmed === '') {
-      flushList();
-      continue;
-    }
-
-    // Regular paragraph
-    flushList();
+    // Regular paragraph - single newlines become <br>
     elements.push(
       <p key={`p-${keyIndex++}`} style={{
-        marginBottom: '20px',
+        marginBottom: '24px',
         color: '#D0D0D0',
         lineHeight: '1.8',
       }}>
-        {renderInline(line)}
+        {renderInline(trimmed)}
       </p>
     );
   }
-
-  // Flush any remaining list
-  flushList();
 
   return elements;
 }

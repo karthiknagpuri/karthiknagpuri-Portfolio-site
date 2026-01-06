@@ -5,6 +5,9 @@ import './index.css'
 import App from './App.jsx'
 import { BlogProvider } from './BlogContext.jsx'
 import { AuthProvider } from './contexts/AuthContext.jsx'
+import BlogListPage from './BlogListPage.jsx'
+import BlogPostPage from './BlogPostPage.jsx'
+import SnakeGame from './pages/SnakeGame.jsx'
 
 // Admin imports
 import AdminLogin from './admin/AdminLogin.jsx'
@@ -22,6 +25,11 @@ import MessagesSection from './admin/sections/MessagesSection.jsx'
 import ContentStudioSection from './admin/sections/ContentStudioSection.jsx'
 import GallerySection from './admin/sections/GallerySection.jsx'
 import ReadingLogSection from './admin/sections/ReadingLogSection.jsx'
+import ApiSettingsSection from './admin/sections/ApiSettingsSection.jsx'
+import DailyCheckinSection from './admin/sections/DailyCheckinSection.jsx'
+import NewsletterSection from './admin/sections/NewsletterSection.jsx'
+import SubscriptionsSection from './admin/sections/SubscriptionsSection.jsx'
+import MonetizeSection from './admin/sections/MonetizeSection.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -29,8 +37,11 @@ createRoot(document.getElementById('root')).render(
       <AuthProvider>
         <BlogProvider>
           <Routes>
-            {/* Public route */}
+            {/* Public routes */}
             <Route path="/" element={<App />} />
+            <Route path="/blog" element={<BlogListPage />} />
+            <Route path="/blog/:slug" element={<BlogPostPage />} />
+            <Route path="/snake" element={<SnakeGame />} />
 
             {/* Admin login (public) */}
             <Route path="/admin/login" element={<AdminLogin />} />
@@ -54,6 +65,11 @@ createRoot(document.getElementById('root')).render(
               <Route path="content" element={<ContentStudioSection />} />
               <Route path="gallery" element={<GallerySection />} />
               <Route path="reading" element={<ReadingLogSection />} />
+              <Route path="api-settings" element={<ApiSettingsSection />} />
+              <Route path="checkin" element={<DailyCheckinSection />} />
+              <Route path="newsletter" element={<NewsletterSection />} />
+              <Route path="subscriptions" element={<SubscriptionsSection />} />
+              <Route path="monetize" element={<MonetizeSection />} />
             </Route>
           </Routes>
         </BlogProvider>

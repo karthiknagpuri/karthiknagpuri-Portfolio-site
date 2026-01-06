@@ -38,6 +38,11 @@ const AdminLayout = () => {
     if (path.includes('/reading')) return 'Reading Log';
     if (path.includes('/messages')) return 'Messages';
     if (path.includes('/content')) return 'Content Studio';
+    if (path.includes('/newsletter')) return 'Newsletter';
+    if (path.includes('/api-settings')) return 'API Settings';
+    if (path.includes('/checkin')) return 'Daily Check-in';
+    if (path.includes('/subscriptions')) return 'Subscriptions';
+    if (path.includes('/monetize')) return 'Monetize';
     return 'Dashboard';
   };
 

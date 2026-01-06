@@ -1,10 +1,81 @@
 // OpenAI Integration for Content Studio
-// IMPORTANT: API key should be set via environment variable VITE_OPENAI_API_KEY
-// For production, use a backend/edge function to avoid exposing the key
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY || '';
+// API key is fetched from Supabase api_settings table or falls back to env variable
+import { supabase } from '../supabaseClient';
+
+// Cache for API key
+let cachedApiKey = null;
+let lastFetchTime = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Fetch API key from Supabase with caching
+const getApiKey = async () => {
+  const now = Date.now();
+
+  // Return cached key if still valid
+  if (cachedApiKey && (now - lastFetchTime) < CACHE_DURATION) {
+    return cachedApiKey;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('api_settings')
+      .select('openai_key')
+      .eq('id', 1)
+      .single();
+
+    if (data?.openai_key) {
+      cachedApiKey = data.openai_key;
+      lastFetchTime = now;
+      return cachedApiKey;
+    }
+  } catch (error) {
+    console.log('Error fetching API key from Supabase:', error);
+  }
+
+  // Fallback to environment variable
+  const envKey = import.meta.env.VITE_OPENAI_API_KEY || '';
+  if (envKey) {
+    cachedApiKey = envKey;
+    lastFetchTime = now;
+  }
+  return envKey;
+};
 
 // Check if API key is available
-const isAIEnabled = () => Boolean(OPENAI_API_KEY);
+const isAIEnabled = async () => {
+  const key = await getApiKey();
+  return Boolean(key);
+};
+
+// Pricing per 1M tokens (as of 2024)
+const MODEL_PRICING = {
+  'gpt-4o-mini': { input: 0.15, output: 0.60 },
+  'gpt-4o': { input: 2.50, output: 10.00 },
+  'gpt-4-turbo': { input: 10.00, output: 30.00 },
+  'gpt-3.5-turbo': { input: 0.50, output: 1.50 },
+};
+
+// Track API usage
+const trackUsage = async (model, operation, usage) => {
+  try {
+    const pricing = MODEL_PRICING[model] || MODEL_PRICING['gpt-4o-mini'];
+    const promptCost = (usage.prompt_tokens / 1000000) * pricing.input;
+    const completionCost = (usage.completion_tokens / 1000000) * pricing.output;
+    const estimatedCost = promptCost + completionCost;
+
+    await supabase.from('api_usage').insert({
+      provider: 'openai',
+      model,
+      operation,
+      prompt_tokens: usage.prompt_tokens || 0,
+      completion_tokens: usage.completion_tokens || 0,
+      total_tokens: usage.total_tokens || 0,
+      estimated_cost: estimatedCost,
+    });
+  } catch (error) {
+    console.log('Error tracking usage:', error);
+  }
+};
 
 const PLATFORM_CONTEXTS = {
   blog: {
@@ -35,8 +106,9 @@ const PLATFORM_CONTEXTS = {
 };
 
 export async function generateDailyPrompts() {
-  if (!isAIEnabled()) {
-    console.log('AI features disabled: Set VITE_OPENAI_API_KEY environment variable');
+  const apiKey = await getApiKey();
+  if (!apiKey) {
+    console.log('AI features disabled: No API key configured');
     return null;
   }
   try {
@@ -50,7 +122,7 @@ export async function generateDailyPrompts() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -85,6 +157,11 @@ Return as JSON: {"blog": "prompt", "twitter": "prompt", "instagram": "prompt", "
     const data = await response.json();
 
     if (data.choices && data.choices[0]) {
+      // Track usage
+      if (data.usage) {
+        trackUsage('gpt-4o-mini', 'daily_prompts', data.usage);
+      }
+
       const content = data.choices[0].message.content;
       // Extract JSON from response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -101,8 +178,9 @@ Return as JSON: {"blog": "prompt", "twitter": "prompt", "instagram": "prompt", "
 }
 
 export async function generateContentInspiration(platform, topic = null) {
-  if (!isAIEnabled()) {
-    console.log('AI features disabled: Set VITE_OPENAI_API_KEY environment variable');
+  const apiKey = await getApiKey();
+  if (!apiKey) {
+    console.log('AI features disabled: No API key configured');
     return null;
   }
   try {
@@ -112,7 +190,7 @@ export async function generateContentInspiration(platform, topic = null) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -136,6 +214,10 @@ export async function generateContentInspiration(platform, topic = null) {
     const data = await response.json();
 
     if (data.choices && data.choices[0]) {
+      // Track usage
+      if (data.usage) {
+        trackUsage('gpt-4o-mini', 'content_inspiration', data.usage);
+      }
       return data.choices[0].message.content;
     }
 
@@ -147,8 +229,9 @@ export async function generateContentInspiration(platform, topic = null) {
 }
 
 export async function improveContent(platform, content) {
-  if (!isAIEnabled()) {
-    console.log('AI features disabled: Set VITE_OPENAI_API_KEY environment variable');
+  const apiKey = await getApiKey();
+  if (!apiKey) {
+    console.log('AI features disabled: No API key configured');
     return null;
   }
   try {
@@ -158,7 +241,7 @@ export async function improveContent(platform, content) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -180,6 +263,10 @@ export async function improveContent(platform, content) {
     const data = await response.json();
 
     if (data.choices && data.choices[0]) {
+      // Track usage
+      if (data.usage) {
+        trackUsage('gpt-4o-mini', 'improve_content', data.usage);
+      }
       return data.choices[0].message.content;
     }
 
@@ -191,7 +278,8 @@ export async function improveContent(platform, content) {
 }
 
 export async function generateMotivationalMessage() {
-  if (!isAIEnabled()) {
+  const apiKey = await getApiKey();
+  if (!apiKey) {
     return null;
   }
   try {
@@ -202,7 +290,7 @@ export async function generateMotivationalMessage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -220,6 +308,10 @@ export async function generateMotivationalMessage() {
     const data = await response.json();
 
     if (data.choices && data.choices[0]) {
+      // Track usage
+      if (data.usage) {
+        trackUsage('gpt-4o-mini', 'motivational_message', data.usage);
+      }
       return data.choices[0].message.content.replace(/"/g, '').trim();
     }
 
@@ -231,8 +323,9 @@ export async function generateMotivationalMessage() {
 }
 
 export async function generateContentPlan(idea) {
-  if (!isAIEnabled()) {
-    console.log('AI features disabled: Set VITE_OPENAI_API_KEY environment variable');
+  const apiKey = await getApiKey();
+  if (!apiKey) {
+    console.log('AI features disabled: No API key configured');
     return null;
   }
   try {
@@ -240,7 +333,7 @@ export async function generateContentPlan(idea) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -298,6 +391,10 @@ Make each platform's content unique and optimized for that platform's audience a
     const data = await response.json();
 
     if (data.choices && data.choices[0]) {
+      // Track usage
+      if (data.usage) {
+        trackUsage('gpt-4o-mini', 'content_plan', data.usage);
+      }
       const content = data.choices[0].message.content;
       // Extract JSON from response
       const jsonMatch = content.match(/\{[\s\S]*\}/);

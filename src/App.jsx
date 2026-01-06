@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useBlog } from './BlogContext';
-import BlogPost from './BlogPost';
+import { Link, useNavigate } from 'react-router-dom';
 import { InteractiveIndiaMap } from './components/InteractiveMap';
 import { Terminal } from './components/Terminal';
 import { useKeyboardShortcuts, KeyboardHelp } from './components/KeyboardShortcuts';
 import BB8Toggle from './components/BB8Toggle';
 import MatrixText from './components/MatrixText';
+import Navbar from './components/Navbar';
 import { ZeroInfinity } from './components/ZeroInfinity';
 import { VisitorCounter } from './components/VisitorCounter';
 import { ContactForm } from './components/ContactForm';
+import NewsletterPopup from './components/NewsletterPopup';
+import SnakeGamePopup from './components/SnakeGamePopup';
 import { supabase } from './supabaseClient';
 import profileHeroImg from './assets/profile-hero.png';
 
@@ -214,11 +216,6 @@ export default function ZeroWebsite() {
   });
   const theme = isDarkMode ? themes.dark : themes.light;
 
-  // Blog state
-  const [selectedPostId, setSelectedPostId] = useState(null);
-  const { getPublishedPosts } = useBlog();
-  const blogPosts = getPublishedPosts();
-
   // Experiences state - fetched from Supabase
   const [experiences, setExperiences] = useState([]);
 
@@ -227,6 +224,7 @@ export default function ZeroWebsite() {
 
   // Reading log state
   const [readingLogOpen, setReadingLogOpen] = useState(false);
+  const [snakeGameOpen, setSnakeGameOpen] = useState(false);
   const [readingLogBooks, setReadingLogBooks] = useState([]);
   const [readingLogLastUpdated, setReadingLogLastUpdated] = useState(null);
 
@@ -266,6 +264,7 @@ export default function ZeroWebsite() {
 
   // Fetch experiences from Supabase
   useEffect(() => {
+    let isMounted = true;
     const fetchExperiences = async () => {
       try {
         const { data, error } = await supabase
@@ -277,18 +276,19 @@ export default function ZeroWebsite() {
 
         if (error) throw error;
 
-        if (data && data.length > 0) {
+        if (isMounted && data && data.length > 0) {
           setExperiences(data);
-        } else {
+        } else if (isMounted) {
           setExperiences(fallbackExperiences);
         }
       } catch (error) {
         console.log('Using fallback experiences:', error);
-        setExperiences(fallbackExperiences);
+        if (isMounted) setExperiences(fallbackExperiences);
       }
     };
 
     fetchExperiences();
+    return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -302,46 +302,51 @@ export default function ZeroWebsite() {
     { id: 6, title: 'Rural India Expedition', caption: 'Exploring rural India', category: 'Journey' },
   ];
 
-  // Fetch gallery images from Supabase
+  // Fetch gallery images from Supabase - limited to 12 for performance
   useEffect(() => {
+    let isMounted = true;
     const fetchGalleryImages = async () => {
       try {
         const { data, error } = await supabase
           .from('gallery_images')
           .select('*')
           .eq('is_visible', true)
-          .order('display_order', { ascending: true });
+          .order('display_order', { ascending: true })
+          .limit(12);
 
         if (error) throw error;
 
-        if (data && data.length > 0) {
+        if (isMounted && data && data.length > 0) {
           setGalleryImages(data);
-        } else {
+        } else if (isMounted) {
           setGalleryImages(fallbackGalleryImages);
         }
       } catch (error) {
         console.log('Using fallback gallery images:', error);
-        setGalleryImages(fallbackGalleryImages);
+        if (isMounted) setGalleryImages(fallbackGalleryImages);
       }
     };
 
     fetchGalleryImages();
+    return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch reading log from Supabase
+  // Fetch reading log from Supabase - limited to 10 most recent
   useEffect(() => {
+    let isMounted = true;
     const fetchReadingLog = async () => {
       try {
         const { data, error } = await supabase
           .from('reading_log')
           .select('*')
           .eq('is_visible', true)
-          .order('date_read', { ascending: false });
+          .order('date_read', { ascending: false })
+          .limit(10);
 
         if (error) throw error;
 
-        if (data && data.length > 0) {
+        if (isMounted && data && data.length > 0) {
           setReadingLogBooks(data);
           // Get the most recent update time
           const latestUpdate = data.reduce((latest, book) => {
@@ -356,6 +361,7 @@ export default function ZeroWebsite() {
     };
 
     fetchReadingLog();
+    return () => { isMounted = false; };
   }, []);
 
   // Theme toggle handler
@@ -393,15 +399,17 @@ export default function ZeroWebsite() {
   // Active view state: 'landing' for main page, 'terminal' for terminal tab
   const [activeView, setActiveView] = useState('landing');
 
+  const navigate = useNavigate();
+
   const sections = [
-    { id: 'terminal', label: 'TERMINAL', isTab: true },
     { id: 'now', label: 'NOW' },
     { id: 'past', label: 'JOURNEY' },
     { id: 'geography', label: 'MAP' },
-    { id: 'writing', label: 'BLOG' },
+    { id: 'blog', label: 'BLOG', isLink: true, path: '/blog' },
     { id: 'gallery', label: 'GALLERY' },
     { id: 'vibes', label: 'VIBES' },
     { id: 'connect', label: 'CONTACT' },
+    { id: 'terminal', label: 'TERMINAL', isTab: true },
   ];
 
 
@@ -409,9 +417,11 @@ export default function ZeroWebsite() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Handle navigation click - switch view for tabs, scroll for sections
+  // Handle navigation click - switch view for tabs, scroll for sections, navigate for links
   const handleNavClick = (section) => {
-    if (section.isTab) {
+    if (section.isLink) {
+      navigate(section.path);
+    } else if (section.isTab) {
       setActiveView(section.id);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
@@ -1058,215 +1068,20 @@ export default function ZeroWebsite() {
         transition: 'width 0.1s linear',
       }} />
 
-      {/* Navigation - Apple-style */}
-      <nav style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        padding: '0 max(24px, env(safe-area-inset-left))',
-        height: '52px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        zIndex: 100,
-        background: theme.navBg,
-        backdropFilter: 'saturate(180%) blur(20px)',
-        WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-        borderBottom: `0.5px solid ${theme.border}`,
-        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-      }}>
-        <div style={{
-          fontFamily: "'Instrument Serif', serif",
-          fontSize: '22px',
-          fontStyle: 'italic',
-          letterSpacing: '-0.5px',
-          cursor: 'pointer',
-          color: theme.text,
-          fontWeight: '400',
-          transition: 'opacity 0.2s ease',
-        }}
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.7'}
-        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-        >
-          Zero
-        </div>
-
-        <div className="nav-desktop" style={{
-          gap: '32px',
-          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
-          fontSize: '12px',
-          fontWeight: '400',
-          letterSpacing: '0.5px',
-        }}>
-          {sections.map((section) => (
-            <span
-              key={section.id}
-              className="nav-item"
-              onClick={() => handleNavClick(section)}
-              style={{
-                color: activeView === section.id ? theme.accent : theme.textSecondary,
-                fontWeight: activeView === section.id ? '600' : '400',
-              }}
-            >
-              {section.label}
-            </span>
-          ))}
-        </div>
-
-        {/* Desktop: Theme Toggle + CTA */}
-        <div className="nav-desktop" style={{ gap: '16px', alignItems: 'center' }}>
-          {/* Reading Log Icon */}
-          <button
-            onClick={() => setReadingLogOpen(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '8px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              color: theme.textSecondary,
-              transition: 'color 0.2s ease',
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
-              fontSize: '11px',
-              fontWeight: '500',
-              letterSpacing: '0.5px',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = theme.accent;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = theme.textSecondary;
-            }}
-            title="Reading Log"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-            </svg>
-            READING
-          </button>
-          <div style={{ transform: 'scale(0.25)', transformOrigin: 'center', marginRight: '-60px' }}>
-            <BB8Toggle 
-              checked={!isDarkMode} 
-              onChange={toggleTheme}
-            />
-          </div>
-          <a
-            href="mailto:nanikarthik98@gmail.com"
-            style={{
-              fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
-              fontSize: '12px',
-              fontWeight: '500',
-              color: isDarkMode ? '#fff' : '#fff',
-              textDecoration: 'none',
-              padding: '8px 16px',
-              background: theme.accent,
-              borderRadius: '980px',
-              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = theme.accentHover;
-              e.currentTarget.style.transform = 'scale(1.02)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = theme.accent;
-              e.currentTarget.style.transform = 'scale(1)';
-            }}
-          >
-            Say Hi
-          </a>
-        </div>
-
-        {/* Mobile: Hamburger */}
-        <div
-          className={`hamburger ${mobileMenuOpen ? 'open' : ''}`}
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Menu"
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-      </nav>
-
-      {/* Mobile Menu Overlay */}
-      <div
-        className={`mobile-menu ${mobileMenuOpen ? 'open' : ''}`}
-        style={{ background: theme.bg }}
-      >
-        {sections.map((section) => (
-          <div
-            key={section.id}
-            className="mobile-menu-item"
-            style={{
-              color: activeView === section.id ? theme.accent : theme.textSecondary,
-              fontWeight: activeView === section.id ? '600' : '400',
-            }}
-            onClick={() => {
-              handleNavClick(section);
-              setMobileMenuOpen(false);
-            }}
-          >
-            {section.label}
-          </div>
-        ))}
-        <a
-          href="mailto:nanikarthik98@gmail.com"
-          className="mobile-menu-item"
-          style={{ color: theme.accent, marginTop: '16px' }}
-          onClick={() => setMobileMenuOpen(false)}
-        >
-          SAY HI →
-        </a>
-        {/* Mobile Reading Log */}
-        <button
-          onClick={() => {
-            setReadingLogOpen(true);
-            setMobileMenuOpen(false);
-          }}
-          className="mobile-menu-item"
-          style={{
-            background: 'none',
-            border: 'none',
-            color: theme.textSecondary,
-            marginTop: '8px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          📚 Reading Log
-        </button>
-        {/* Mobile Theme Toggle */}
-        <button
-          onClick={() => {
-            toggleTheme();
-            setMobileMenuOpen(false);
-          }}
-          className="mobile-menu-item"
-          style={{
-            background: 'none',
-            border: 'none',
-            color: theme.textSecondary,
-            marginTop: '16px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          {isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
-        </button>
-      </div>
+      {/* Navigation - Shared Navbar Component */}
+      <Navbar
+        isHome={true}
+        theme={theme}
+        activeSection={activeView}
+        onNavClick={handleNavClick}
+        onReadingClick={() => setReadingLogOpen(true)}
+        onGameClick={() => setSnakeGameOpen(true)}
+        mobileMenuOpen={mobileMenuOpen}
+        setMobileMenuOpen={setMobileMenuOpen}
+        ThemeToggle={BB8Toggle}
+        isDarkMode={isDarkMode}
+        toggleTheme={toggleTheme}
+      />
 
       {/* Reading Log Modal */}
       {readingLogOpen && (
@@ -1621,12 +1436,12 @@ export default function ZeroWebsite() {
               <span>LinkedIn</span>
               <span>↗</span>
             </a>
-            <a href="mailto:nanikarthik98@gmail.com" className="social-link">
-              <span>Email</span>
+            <a href="https://twitter.com/karthiknagpuri" target="_blank" rel="noopener noreferrer" className="social-link">
+              <span>Twitter</span>
               <span>↗</span>
             </a>
-            <a href="tel:+916305458955" className="social-link">
-              <span>Call</span>
+            <a href="https://instagram.com/karthiknagpuri" target="_blank" rel="noopener noreferrer" className="social-link">
+              <span>Instagram</span>
               <span>↗</span>
             </a>
           </div>
@@ -1781,6 +1596,7 @@ export default function ZeroWebsite() {
                       <iframe
                         src={project.video_url}
                         title={`${project.title} Video`}
+                        loading="lazy"
                         style={{
                           position: 'absolute',
                           top: 0,
@@ -1939,6 +1755,7 @@ export default function ZeroWebsite() {
                   <iframe
                     src="https://www.youtube.com/embed/CTuljx86jPU"
                     title="TEDx Talk - Building Integrated Communities with Zero Mindset"
+                    loading="lazy"
                     style={{
                       position: 'absolute',
                       top: 0,
@@ -1959,23 +1776,19 @@ export default function ZeroWebsite() {
                 gap: '24px',
               }}>
                 {[
-                  { icon: '🔐', text: 'SafeBlock — CTO & Founder · End-to-end crypto nominee system preventing digital asset loss' },
-                  { icon: '🚽', text: 'LooCafé/Ixora Group — Head of Technology · "Most Innovative Company" by CII, UNDP Best Practice' },
-                  { icon: '📖', text: 'LiteraZe Society — Technical Lead · Literacy and education initiatives (2019-2023)' },
-                  { icon: '🎯', text: 'FeatureIndia — Chief Technology Officer' },
-                  { icon: '📝', text: 'TextHappen Content — Senior Director of Operations' },
-                  { icon: '🎓', text: 'Google DSC Core Team · Coding Cubs VP · Led 5+ organizations' },
-                  { icon: '🤖', text: 'Technical: AI/ML, DeFi, Blockchain, Full-Stack Development, Solution Architecture' },
-                ].map((item, index) => (
+                  'SafeBlock — CTO & Founder · End-to-end crypto nominee system preventing digital asset loss',
+                  'LooCafé/Ixora Group — Head of Technology · "Most Innovative Company" by CII, UNDP Best Practice',
+                  'LiteraZe Society — Technical Lead · Literacy and education initiatives (2019-2023)',
+                  'FeatureIndia — Chief Technology Officer',
+                  'TextHappen Content — Senior Director of Operations',
+                  'Google DSC Core Team · Coding Cubs VP · Led 5+ organizations',
+                  'Technical: AI/ML, DeFi, Blockchain, Full-Stack Development, Solution Architecture',
+                ].map((text, index) => (
                   <div key={index} style={{
-                    display: 'flex',
-                    gap: '16px',
-                    alignItems: 'flex-start',
                     padding: '16px 0',
                     borderBottom: `1px solid ${theme.border}`,
                   }}>
-                    <span style={{ fontSize: '20px' }}>{item.icon}</span>
-                    <span style={{ fontSize: '16px', color: theme.textSecondary, lineHeight: '1.6' }}>{item.text}</span>
+                    <span style={{ fontSize: '16px', color: theme.textSecondary, lineHeight: '1.6' }}>{text}</span>
                   </div>
                 ))}
               </div>
@@ -2460,152 +2273,6 @@ export default function ZeroWebsite() {
         </AnimatedSection>
       </section>
 
-      {/* Writing/Blog Section */}
-      <section id="writing" className="section-padding" style={{
-        borderTop: `1px solid ${theme.border}`,
-      }}>
-        <AnimatedSection>
-          <div style={{
-            maxWidth: '1200px',
-            margin: '0 auto',
-          }}>
-            <div style={{
-              fontFamily: "'Space Mono', monospace",
-              fontSize: '11px',
-              letterSpacing: '2px',
-              color: theme.accent,
-              marginBottom: '16px',
-            }}>
-              BLOG
-            </div>
-
-            <h2 className="section-title" style={{
-              fontFamily: "'Instrument Serif', serif",
-              fontWeight: '400',
-              fontStyle: 'italic',
-              marginBottom: '40px',
-              color: theme.text,
-            }}>
-              Thoughts & reflections
-            </h2>
-
-            <div style={{
-              display: 'grid',
-              gap: '24px',
-            }}>
-              {blogPosts.map((post, index) => (
-                <article
-                  key={index}
-                  onClick={() => setSelectedPostId(post.id)}
-                  style={{
-                    padding: 'clamp(24px, 5vw, 40px)',
-                    background: theme.cardBg,
-                    border: `1px solid ${theme.cardBorder}`,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = theme.accent + '50';
-                    e.currentTarget.style.background = theme.accentBg;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = theme.cardBorder;
-                    e.currentTarget.style.background = theme.cardBg;
-                  }}
-                >
-                  <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '12px',
-                    alignItems: 'center',
-                    marginBottom: '16px',
-                  }}>
-                    <span style={{
-                      fontFamily: "'Space Mono', monospace",
-                      fontSize: '10px',
-                      letterSpacing: '1px',
-                      color: theme.accent,
-                      padding: '4px 8px',
-                      background: theme.accentBg,
-                    }}>
-                      {post.category}
-                    </span>
-                    <span style={{
-                      fontFamily: "'Space Mono', monospace",
-                      fontSize: '10px',
-                      color: theme.textMuted,
-                    }}>
-                      {post.date} · {post.readTime} read
-                    </span>
-                  </div>
-
-                  <h3 style={{
-                    fontFamily: "'Instrument Serif', serif",
-                    fontSize: 'clamp(20px, 5vw, 28px)',
-                    fontWeight: '400',
-                    fontStyle: 'italic',
-                    marginBottom: '12px',
-                    color: theme.text,
-                  }}>
-                    {post.title}
-                  </h3>
-
-                  <p style={{
-                    fontSize: '15px',
-                    lineHeight: '1.7',
-                    color: theme.textSecondary,
-                    marginBottom: '16px',
-                  }}>
-                    {post.excerpt || (post.content ? post.content.replace(/[#*`]/g, '').slice(0, 200) + '...' : '')}
-                  </p>
-
-                  <div style={{
-                    fontFamily: "'Space Mono', monospace",
-                    fontSize: '11px',
-                    color: theme.accent,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}>
-                    Read more <span>→</span>
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            <div style={{
-              textAlign: 'center',
-              marginTop: '40px',
-            }}>
-              <a
-                href="#"
-                style={{
-                  fontFamily: "'Space Mono', monospace",
-                  fontSize: '12px',
-                  letterSpacing: '1px',
-                  color: theme.textSecondary,
-                  textDecoration: 'none',
-                  padding: '14px 24px',
-                  border: `1px solid ${theme.border}`,
-                  display: 'inline-block',
-                  transition: 'all 0.3s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.borderColor = theme.accent;
-                  e.target.style.color = theme.accent;
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.borderColor = theme.border;
-                  e.target.style.color = theme.textSecondary;
-                }}
-              >
-                VIEW ALL POSTS →
-              </a>
-            </div>
-          </div>
-        </AnimatedSection>
-      </section>
-
       {/* Connect Section */}
       <section id="connect" className="section-padding" style={{
         background: theme.bgSecondary,
@@ -2723,15 +2390,6 @@ export default function ZeroWebsite() {
         ZERO — AI ENGINEER — ECOSYSTEM BUILDER — CONNECTOR OF HUMANS
       </div>
 
-      {/* Blog Post Modal */}
-      {selectedPostId && (
-        <BlogPost
-          postId={selectedPostId}
-          onClose={() => setSelectedPostId(null)}
-          showEditButton={false}
-        />
-      )}
-
       {/* Keyboard Shortcuts Help Modal */}
       <KeyboardHelp
         show={showHelp}
@@ -2752,6 +2410,14 @@ export default function ZeroWebsite() {
       }}>
         Press ? for shortcuts
       </div>
+
+      {/* Newsletter Popup */}
+      <NewsletterPopup theme={theme} />
+      <SnakeGamePopup
+        isOpen={snakeGameOpen}
+        onClose={() => setSnakeGameOpen(false)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 }

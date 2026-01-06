@@ -54,6 +54,10 @@ const AdminDashboard = () => {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [expandedPlatform, setExpandedPlatform] = useState(null);
 
+  // Daily Check-in state
+  const [todayCheckin, setTodayCheckin] = useState(null);
+  const [checkinStreak, setCheckinStreak] = useState(0);
+
   const theme = {
     bg: '#0a0a0a',
     surface: '#141414',
@@ -184,6 +188,47 @@ const AdminDashboard = () => {
     }
   };
 
+  const loadTodayCheckin = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data } = await supabase
+        .from('daily_checkins')
+        .select('*')
+        .eq('checkin_date', today)
+        .single();
+
+      setTodayCheckin(data);
+
+      // Calculate streak
+      const { data: allCheckins } = await supabase
+        .from('daily_checkins')
+        .select('checkin_date')
+        .order('checkin_date', { ascending: false })
+        .limit(30);
+
+      if (allCheckins?.length) {
+        let streak = 0;
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+
+        for (let i = 0; i < allCheckins.length; i++) {
+          const checkinDate = new Date(allCheckins[i].checkin_date);
+          checkinDate.setHours(0, 0, 0, 0);
+          const expectedDate = new Date(todayDate);
+          expectedDate.setDate(expectedDate.getDate() - i);
+          if (checkinDate.getTime() === expectedDate.getTime()) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+        setCheckinStreak(streak);
+      }
+    } catch (error) {
+      console.log('Error loading checkin:', error);
+    }
+  };
+
   const updateContentStreak = () => {
     const today = new Date().toDateString();
     const savedDate = localStorage.getItem('lastContentDate');
@@ -206,6 +251,7 @@ const AdminDashboard = () => {
     loadAIPrompts();
     loadContentStreak();
     loadMotivationalMessage();
+    loadTodayCheckin();
   }, []);
 
   const handleAIInspire = async () => {
@@ -328,6 +374,14 @@ const AdminDashboard = () => {
     return 'Good evening';
   };
 
+  const MOOD_EMOJI = {
+    great: '🔥',
+    good: '😊',
+    okay: '😐',
+    low: '😔',
+    rough: '😫',
+  };
+
   return (
     <div>
       {/* Welcome Section with Streak */}
@@ -389,6 +443,103 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Daily Check-in Widget */}
+      <Link
+        to="/admin/checkin"
+        style={{
+          display: 'block',
+          textDecoration: 'none',
+          marginBottom: '32px',
+        }}
+      >
+        <div
+          style={{
+            background: todayCheckin ? `${theme.teal}10` : theme.surface,
+            border: `1px solid ${todayCheckin ? `${theme.teal}40` : theme.border}`,
+            borderRadius: '12px',
+            padding: '20px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            transition: 'all 0.2s ease',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = theme.teal;
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = todayCheckin ? `${theme.teal}40` : theme.border;
+            e.currentTarget.style.transform = 'translateY(0)';
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              background: todayCheckin ? `${theme.teal}20` : theme.bg,
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '24px',
+            }}>
+              {todayCheckin ? MOOD_EMOJI[todayCheckin.mood] || '✓' : '📋'}
+            </div>
+            <div>
+              <div style={{
+                fontFamily: "'Space Mono', monospace",
+                fontSize: '13px',
+                color: theme.text,
+                fontWeight: '500',
+                marginBottom: '4px',
+              }}>
+                {todayCheckin ? 'You checked in today!' : 'Daily Check-in'}
+              </div>
+              <div style={{
+                fontFamily: "'Space Mono', monospace",
+                fontSize: '11px',
+                color: todayCheckin ? theme.teal : theme.textMuted,
+              }}>
+                {todayCheckin
+                  ? `Feeling ${todayCheckin.mood} • Energy ${todayCheckin.energy_level}/5`
+                  : "How are you feeling today? Let's track it."}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {checkinStreak > 0 && (
+              <div style={{
+                background: 'rgba(255,230,109,0.15)',
+                padding: '6px 12px',
+                borderRadius: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}>
+                <span style={{ fontSize: '14px' }}>🔥</span>
+                <span style={{
+                  fontFamily: "'Space Mono', monospace",
+                  fontSize: '11px',
+                  color: theme.yellow,
+                  fontWeight: '500',
+                }}>
+                  {checkinStreak} day streak
+                </span>
+              </div>
+            )}
+            <span style={{
+              fontFamily: "'Space Mono', monospace",
+              fontSize: '18px',
+              color: theme.teal,
+            }}>
+              →
+            </span>
+          </div>
+        </div>
+      </Link>
 
       {/* Content Studio */}
       <div style={{ marginBottom: '32px' }}>

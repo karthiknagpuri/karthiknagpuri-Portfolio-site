@@ -448,6 +448,10 @@ export function BlogProvider({ children }) {
     return posts.find(post => post.id === id);
   };
 
+  const getPostBySlug = (slug) => {
+    return posts.find(post => post.slug === slug);
+  };
+
   const getPublishedPosts = () => {
     return posts.filter(post => post.published && post.visibility !== 'private');
   };
@@ -547,6 +551,7 @@ export function BlogProvider({ children }) {
       updatePost,
       deletePost,
       getPost,
+      getPostBySlug,
       getPublishedPosts,
       getFeaturedPosts,
       verifyPostPassword,

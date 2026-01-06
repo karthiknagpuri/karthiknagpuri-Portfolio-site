@@ -25,6 +25,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
 
   const navItems = [
     { path: '/admin', label: 'Dashboard', icon: 'HOME', exact: true },
+    { path: '/admin/checkin', label: 'Daily Check-in', icon: 'CHECK' },
     { path: '/admin/blog', label: 'Blog', icon: 'BLOG' },
     { path: '/admin/resources', label: 'Resources', icon: 'FILES' },
     { path: '/admin/links', label: 'Links', icon: 'LINKS' },
@@ -34,6 +35,10 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { path: '/admin/reading', label: 'Reading Log', icon: 'BOOKS' },
     { path: '/admin/messages', label: 'Messages', icon: 'INBOX' },
     { path: '/admin/content', label: 'Content Studio', icon: 'CREATE' },
+    { path: '/admin/newsletter', label: 'Newsletter', icon: 'MAIL' },
+    { path: '/admin/subscriptions', label: 'Subscriptions', icon: 'SUBS' },
+    { path: '/admin/monetize', label: 'Monetize', icon: 'MONEY' },
+    { path: '/admin/api-settings', label: 'API Settings', icon: 'API' },
   ];
 
   const isActive = (path, exact) => {
