@@ -149,8 +149,9 @@ const SubscriptionsSection = () => {
     try {
       const { data, error } = await supabase
         .from('subscriptions')
-        .select('*')
-        .order('next_billing_date', { ascending: true });
+        .select('id, name, category, cost, billing_cycle, next_billing_date, auto_renew, cancel_reminder, cancel_reminder_days, status, url, email_account, notes')
+        .order('next_billing_date', { ascending: true })
+        .limit(100);
 
       if (error) throw error;
       setSubscriptions(data || []);

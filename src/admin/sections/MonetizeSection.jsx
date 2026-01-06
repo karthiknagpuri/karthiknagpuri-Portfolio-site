@@ -107,8 +107,9 @@ const MonetizeSection = () => {
       // Load revenue streams
       const { data: streams, error: streamsError } = await supabase
         .from('revenue_streams')
-        .select('*')
-        .order('monthly_revenue', { ascending: false });
+        .select('id, name, category, monthly_revenue, status, url, notes, created_at')
+        .order('monthly_revenue', { ascending: false })
+        .limit(50);
 
       if (!streamsError && streams) {
         setRevenueStreams(streams);
@@ -117,8 +118,9 @@ const MonetizeSection = () => {
       // Load goals
       const { data: goalsData, error: goalsError } = await supabase
         .from('revenue_goals')
-        .select('*')
-        .order('deadline', { ascending: true });
+        .select('id, title, target_amount, current_amount, deadline, notes, created_at')
+        .order('deadline', { ascending: true })
+        .limit(20);
 
       if (!goalsError && goalsData) {
         setGoals(goalsData);

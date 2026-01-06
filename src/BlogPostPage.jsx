@@ -205,12 +205,21 @@ function renderMarkdown(content) {
 export default function BlogPostPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const { getPostBySlug, verifyPostPassword, isLoaded } = useBlog();
+  const { getPostBySlug, fetchPostContent, verifyPostPassword, isLoaded } = useBlog();
   const [passwordInput, setPasswordInput] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
+  const [contentLoading, setContentLoading] = useState(false);
 
   const post = getPostBySlug(slug);
+
+  // Fetch full content when post is found but content is missing
+  useEffect(() => {
+    if (post && !post.content && !contentLoading) {
+      setContentLoading(true);
+      fetchPostContent(slug).finally(() => setContentLoading(false));
+    }
+  }, [post, slug, contentLoading, fetchPostContent]);
 
   // Check if post needs password
   const needsPassword = post?.visibility === 'password' && !isUnlocked;
@@ -522,7 +531,19 @@ export default function BlogPostPage() {
           wordBreak: 'break-word',
           overflowWrap: 'break-word',
         }}>
-          {renderMarkdown(post.content)}
+          {contentLoading ? (
+            <div style={{
+              textAlign: 'center',
+              padding: '40px 0',
+              color: theme.textMuted,
+              fontFamily: "'Space Mono', monospace",
+              fontSize: '12px',
+            }}>
+              Loading content...
+            </div>
+          ) : (
+            renderMarkdown(post.content)
+          )}
         </article>
 
         {/* Footer */}

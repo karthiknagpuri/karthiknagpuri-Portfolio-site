@@ -119,24 +119,38 @@ const AdminDashboard = () => {
   };
 
   const fetchStats = async () => {
+    // Check cache first (5-minute TTL)
+    const cachedStats = localStorage.getItem('adminStats');
+    const cachedTime = localStorage.getItem('adminStatsTime');
+    const now = Date.now();
+
+    if (cachedStats && cachedTime && (now - parseInt(cachedTime)) < 300000) {
+      setStats(JSON.parse(cachedStats));
+      return;
+    }
+
     try {
       const { count: messagesCount } = await supabase
         .from('contact_messages')
-        .select('*', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true });
 
       const { count: resourcesCount } = await supabase
         .from('resources')
-        .select('*', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true });
 
       const { count: experiencesCount } = await supabase
         .from('experiences')
-        .select('*', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true });
 
-      setStats({
+      const newStats = {
         messages: messagesCount || 0,
         resources: resourcesCount || 0,
         experiences: experiencesCount || 0,
-      });
+      };
+
+      setStats(newStats);
+      localStorage.setItem('adminStats', JSON.stringify(newStats));
+      localStorage.setItem('adminStatsTime', now.toString());
     } catch (error) {
       console.log('Stats fetch error:', error);
     }
@@ -146,7 +160,7 @@ const AdminDashboard = () => {
     try {
       const { data } = await supabase
         .from('contact_messages')
-        .select('*')
+        .select('id, name, email, message, created_at')
         .order('created_at', { ascending: false })
         .limit(3);
 
@@ -160,7 +174,7 @@ const AdminDashboard = () => {
     try {
       const { data } = await supabase
         .from('content_drafts')
-        .select('*')
+        .select('id, platform, title, content, updated_at')
         .order('updated_at', { ascending: false })
         .limit(5);
 
@@ -193,13 +207,13 @@ const AdminDashboard = () => {
       const today = new Date().toISOString().split('T')[0];
       const { data } = await supabase
         .from('daily_checkins')
-        .select('*')
+        .select('id, checkin_date, mood, energy, focus, notes')
         .eq('checkin_date', today)
         .single();
 
       setTodayCheckin(data);
 
-      // Calculate streak
+      // Calculate streak - only fetch dates needed
       const { data: allCheckins } = await supabase
         .from('daily_checkins')
         .select('checkin_date')

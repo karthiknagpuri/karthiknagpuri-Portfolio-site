@@ -284,9 +284,10 @@ export function BlogProvider({ children }) {
     const loadPosts = async () => {
       try {
         // Try Supabase first
+        // Only fetch essential columns for list view (excludes large 'content' field)
         const { data, error: supabaseError } = await supabase
           .from('blog_posts')
-          .select('*')
+          .select('id, title, slug, excerpt, category, published, featured, created_at, read_time, visibility')
           .order('created_at', { ascending: false });
 
         if (supabaseError) {
@@ -452,6 +453,35 @@ export function BlogProvider({ children }) {
     return posts.find(post => post.slug === slug);
   };
 
+  // Fetch full post content (only when viewing single post to save bandwidth)
+  const fetchPostContent = async (slug) => {
+    if (!useSupabase) {
+      // For fallback posts, content is already included
+      return posts.find(post => post.slug === slug);
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('blog_posts')
+        .select('id, content, password')
+        .eq('slug', slug)
+        .single();
+
+      if (error) throw error;
+
+      // Update the post in state with content
+      if (data) {
+        setPosts(prev => prev.map(p =>
+          p.slug === slug ? { ...p, content: data.content, password: data.password } : p
+        ));
+        return { ...posts.find(p => p.slug === slug), content: data.content, password: data.password };
+      }
+    } catch (err) {
+      console.error('Failed to fetch post content:', err);
+    }
+    return null;
+  };
+
   const getPublishedPosts = () => {
     return posts.filter(post => post.published && post.visibility !== 'private');
   };
@@ -527,9 +557,10 @@ export function BlogProvider({ children }) {
     if (!useSupabase) return;
 
     try {
+      // Only fetch essential columns (excludes large 'content' field)
       const { data, error } = await supabase
         .from('blog_posts')
-        .select('*')
+        .select('id, title, slug, excerpt, category, published, featured, created_at, read_time, visibility')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -552,6 +583,7 @@ export function BlogProvider({ children }) {
       deletePost,
       getPost,
       getPostBySlug,
+      fetchPostContent,
       getPublishedPosts,
       getFeaturedPosts,
       verifyPostPassword,

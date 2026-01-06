@@ -269,10 +269,11 @@ export default function ZeroWebsite() {
       try {
         const { data, error } = await supabase
           .from('experiences')
-          .select('*')
+          .select('id, title, role, description, status_badge, color, display_order, video_url, link_url, link_label, image_url')
           .eq('type', 'current')
           .eq('is_visible', true)
-          .order('display_order', { ascending: true });
+          .order('display_order', { ascending: true })
+          .limit(20);
 
         if (error) throw error;
 
@@ -309,7 +310,7 @@ export default function ZeroWebsite() {
       try {
         const { data, error } = await supabase
           .from('gallery_images')
-          .select('*')
+          .select('id, title, caption, category, image_url, display_order')
           .eq('is_visible', true)
           .order('display_order', { ascending: true })
           .limit(12);
@@ -339,7 +340,7 @@ export default function ZeroWebsite() {
       try {
         const { data, error } = await supabase
           .from('reading_log')
-          .select('*')
+          .select('id, title, author, cover_url, status, rating, date_read, updated_at, created_at')
           .eq('is_visible', true)
           .order('date_read', { ascending: false })
           .limit(10);
