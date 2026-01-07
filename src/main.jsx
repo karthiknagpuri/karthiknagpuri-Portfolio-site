@@ -9,6 +9,12 @@ import BlogListPage from './BlogListPage.jsx'
 import BlogPostPage from './BlogPostPage.jsx'
 import SnakeGame from './pages/SnakeGame.jsx'
 
+// External redirect component
+const ExternalRedirect = ({ to }) => {
+  window.location.href = to
+  return null
+}
+
 // Admin imports
 import AdminLogin from './admin/AdminLogin.jsx'
 import AdminLayout from './admin/AdminLayout.jsx'
@@ -42,6 +48,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="/blog" element={<BlogListPage />} />
             <Route path="/blog/:slug" element={<BlogPostPage />} />
             <Route path="/snake" element={<SnakeGame />} />
+            <Route path="/calendar" element={<ExternalRedirect to="https://topmate.io/karthiknagapuri/" />} />
 
             {/* Admin login (public) */}
             <Route path="/admin/login" element={<AdminLogin />} />
